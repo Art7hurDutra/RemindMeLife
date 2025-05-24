@@ -1,107 +1,127 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, FlatList, TouchableOpacity, StyleSheet, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, FlatList, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function ContactsScreen() {
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [contatos, setContatos] = useState([]);
+export default function PhotosScreen() {
+  const [fotos, setFotos] = useState([]);
+  const [legendaAtual, setLegendaAtual] = useState('');
 
   useEffect(() => {
-    carregarContatos();
+    carregarFotos();
   }, []);
 
-  async function carregarContatos() {
-    const dados = await AsyncStorage.getItem('contatosConfianca');
-    if (dados) setContatos(JSON.parse(dados));
+  async function carregarFotos() {
+    const dados = await AsyncStorage.getItem('fotosComLegenda');
+    if (dados) setFotos(JSON.parse(dados));
   }
 
-  async function salvarContatos(novosContatos) {
-    await AsyncStorage.setItem('contatosConfianca', JSON.stringify(novosContatos));
+  async function salvarFotos(novas) {
+    await AsyncStorage.setItem('fotosComLegenda', JSON.stringify(novas));
   }
 
-  function adicionarContato() {
-    if (!nome || !telefone) return;
-    const novo = [...contatos, { id: Date.now().toString(), nome, telefone }];
-    setContatos(novo);
-    salvarContatos(novo);
-    setNome('');
-    setTelefone('');
+  async function escolherFoto() {
+    const permissao = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissao.granted) {
+      Alert.alert('Permissão negada', 'Você precisa permitir acesso à galeria.');
+      return;
+    }
+
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (!resultado.canceled) {
+      const nova = {
+        id: Date.now().toString(),
+        uri: resultado.assets[0].uri,
+        legenda: legendaAtual,
+      };
+      const atualizadas = [...fotos, nova];
+      setFotos(atualizadas);
+      salvarFotos(atualizadas);
+      setLegendaAtual('');
+    }
   }
 
-  function excluirContato(id) {
-    const atualizado = contatos.filter(c => c.id !== id);
-    setContatos(atualizado);
-    salvarContatos(atualizado);
-  }
-
-  function ligarPara(numero) {
-    Linking.openURL(`tel:${numero}`).catch(() =>
-      Alert.alert('Erro', 'Não foi possível iniciar a ligação')
-    );
+  function excluirFoto(id) {
+    const atualizadas = fotos.filter(f => f.id !== id);
+    setFotos(atualizadas);
+    salvarFotos(atualizadas);
   }
 
   return (
-    <View style={estilos.container}>
-      <Text style={estilos.titulo}>RemindMeLife</Text>
-      <Text style={estilos.header}>Contatos de Confiança</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>RemindMeLife</Text>
+      <Text style={styles.header}>Fotos com Legenda</Text>
+
       <TextInput
-        style={estilos.input}
-        placeholder="Nome"
-        value={nome}
-        onChangeText={setNome}
+        style={styles.input}
+        placeholder="Digite uma legenda para a foto"
+        value={legendaAtual}
+        onChangeText={setLegendaAtual}
       />
-      <TextInput
-        style={estilos.input}
-        placeholder="Telefone"
-        keyboardType="phone-pad"
-        value={telefone}
-        onChangeText={setTelefone}
-      />
-      <Button title="Adicionar Contato" onPress={adicionarContato} />
+      <TouchableOpacity style={styles.addButton} onPress={escolherFoto}>
+        <Text style={styles.addButtonText}>+ Adicionar Foto</Text>
+      </TouchableOpacity>
 
       <FlatList
-        data={contatos}
+        data={fotos}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => ligarPara(item.telefone)} style={estilos.item}>
-            <Text style={estilos.nome}>{item.nome} - {item.telefone}</Text>
-            <TouchableOpacity onPress={() => excluirContato(item.id)}>
-              <Text style={estilos.excluir}>Excluir</Text>
+          <View style={styles.fotoItem}>
+            <Image source={{ uri: item.uri }} style={styles.foto} />
+            <Text style={styles.legenda}>{item.legenda}</Text>
+            <TouchableOpacity onPress={() => excluirFoto(item.id)}>
+              <Text style={styles.excluir}>Excluir</Text>
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
         )}
       />
     </View>
   );
 }
 
-const estilos = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  titulo: { fontSize: 24, fontWeight: 'bold', color: '#1a4f91', textAlign: 'center' },
-  header: { fontSize: 18, marginVertical: 20, textAlign: 'center' },
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', padding: 20, backgroundColor: '#fff' },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#1a4f91' },
+  header: { fontSize: 20, marginVertical: 20 },
   input: {
     borderWidth: 1,
     borderColor: '#aaa',
     padding: 10,
     marginBottom: 10,
     borderRadius: 5,
-  },
-  item: {
-    padding: 15,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    marginBottom: 10,
     width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
-  nome: {
-    fontSize: 16,
+  addButton: {
+    backgroundColor: '#1a4f91',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 20,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  fotoItem: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  foto: {
+    width: 200,
+    height: 200,
+    borderRadius: 10,
+  },
+  legenda: {
+    marginTop: 5,
+    fontStyle: 'italic',
   },
   excluir: {
+    marginTop: 5,
     color: 'red',
     fontWeight: 'bold',
-  }
+  },
 });
